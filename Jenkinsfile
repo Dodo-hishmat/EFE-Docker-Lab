@@ -13,14 +13,7 @@ pipeline {
 
     // 3. Define the stages of the pipeline
     stages {
-        // STAGE 1: Get the source code
-        stage('Checkout from GitHub') {
-            steps {
-                echo "Cloning the repository..."
-                // This checks out the code from the GitHub repo configured in your Jenkins job
-                git 'https://github.com/Dodo-hishmat/EFE-Docker-Lab.git'
-            }
-        }
+        
 
         // STAGE 2: Build the Docker image from the Dockerfile
         // This corresponds to the "Dockerization" requirement in your lab
