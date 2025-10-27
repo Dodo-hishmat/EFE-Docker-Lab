@@ -9,7 +9,7 @@ COPY package*.json ./
 
 # Install app dependencies inside the container
 # This fulfills the 'npm install' requirement 
-RUN npm install
+RUN npm cache clean --force && npm install
 
 # Bundle app source
 COPY . .
