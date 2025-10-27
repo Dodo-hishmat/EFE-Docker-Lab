@@ -11,6 +11,16 @@ pipeline {
     // 3. المراحل الأساسية للشغلانة
     stages {
 
+
+        // STAGE 1: Get the source code
+        // ############ DELETE THIS ENTIRE STAGE ############
+        stage('Checkout from GitHub') {
+            steps {
+                echo "Cloning the repository..."
+                git 'https://github.com/Dodo-hishmat/EFE-Docker-Lab.git'
+            }
+        }
+        // ##################################################
         // المرحلة الأولى: بناء صورة الدوكر
         // Jenkins هيكون نزل الكود تلقائيًا قبل ما يبدأ هنا
         stage('Build Docker Image') {
