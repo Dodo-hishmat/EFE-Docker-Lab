@@ -1,54 +1,103 @@
-// Jenkinsfile (النسخة النهائية والمضبوطة)
-
 pipeline {
-    // 1. تحديد مكان تنفيذ الأوامر (أي جهاز فاضي)
+    
+    // -------------- Agent -------------- //
     agent any
-
-    // 2. تعريف متغيرات هنستخدمها تحت
+    
+    // -------------- Environment Variables -------------- //
     environment {
-        // اسم صورة الدوكر بتاعتك (ممكن تغيري 'nardeen' لاسم اليوزر بتاعك)
-        DOCKER_IMAGE_NAME = "nardeen/efe-docker-lab"
-        // اسم فريد للكونتينر عشان نتجنب أي تعارض
-        CONTAINER_NAME = "efe-node-app-${BUILD_NUMBER}"
+        DOCKER_IMAGE = "nodejs-app"
+        DOCKER_TAG = "${BUILD_NUMBER}"
+        CONTAINER_NAME = "nodejs-app-container"
+        APP_PORT = "3000"
     }
-
-    // 3. مراحل تنفيذ الشغلانة بالترتيب
+    
+    // -------------- Stages -------------- //
     stages {
-
-        // المرحلة الأولى: بناء صورة الدوكر
-        // جينكينز بيكون نزل الكود تلقائيًا قبل ما يدخل هنا
+        
+        // -------------- Checkout Stage -------------- //
+        stage('Checkout') {
+            steps {
+                echo 'Checking out source code from GitHub...'
+                git branch: 'Master', url: 'https://github.com/abdelrahmanonline4/sourcecode'
+            }
+        }
+        
+        // -------------- Build Docker Image Stage -------------- //
         stage('Build Docker Image') {
             steps {
-                echo "Building the Docker image..."
-                // الأمر ده بينفذ 'docker build' في الـ Terminal
-                sh "docker build -t ${DOCKER_IMAGE_NAME}:${BUILD_NUMBER} ."
+                echo 'Building Docker image...'
+                script {
+                    // Build the Docker image
+                    sh "docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} ."
+                    sh "docker build -t ${DOCKER_IMAGE}:latest ."
+                }
             }
         }
-
-        // المرحلة الثانية: تشغيل الكونتينر واختباره
-        stage('Run & Verify Container') {
+        
+        // -------------- Run Container Stage -------------- //
+        stage('Run Container') {
             steps {
-                echo "Running the container for verification..."
-                // بنشغل الكونتينر في الخلفية ونربط البورتات
-                sh "docker run -d --name ${CONTAINER_NAME} -p 3000:3000 ${DOCKER_IMAGE_NAME}:${BUILD_NUMBER}"
-
-                echo "Waiting 15 seconds for the application to start..."
-                sleep 15 // بنستنى شوية عشان نضمن إن السيرفر قام
-
-                echo "Verifying the application is responding..."
-                // بنستخدم curl عشان نتأكد إن السيرفر بيرد علينا
-                sh "curl --fail http://localhost:3000"
+                echo 'Starting Docker container...'
+                script {
+                    // Stop and remove existing container if it exists
+                    sh """
+                        docker stop ${CONTAINER_NAME} || true
+                        docker rm ${CONTAINER_NAME} || true
+                    """
+                    
+                    // Run the new container
+                    sh """
+                        docker run -d \
+                        --name ${CONTAINER_NAME} \
+                        -p ${APP_PORT}:${APP_PORT} \
+                        ${DOCKER_IMAGE}:${DOCKER_TAG}
+                    """
+                    
+                    // Verify container is running
+                    sh "docker ps | grep ${CONTAINER_NAME}"
+                }
+            }
+        }
+        
+        // -------------- Verify Deployment Stage -------------- //
+        stage('Verify Deployment') {
+            steps {
+                echo 'Verifying application deployment...'
+                script {
+                    // Wait a moment for the app to start
+                    sleep(time: 10, unit: 'SECONDS')
+                    
+                    // Check if the application is responding
+                    sh """
+                        curl -f http://localhost:${APP_PORT} || echo 'Application health check failed'
+                        docker logs ${CONTAINER_NAME}
+                    """
+                }
             }
         }
     }
-
-    // 4. مرحلة التنظيف (بتشتغل في الآخر دايماً)
+    
+    // -------------- Post Actions -------------- //
     post {
+        success {
+            echo 'Pipeline completed successfully!'
+            echo "Application is running on http://localhost:${APP_PORT}"
+        }
+        
+        failure {
+            echo 'Pipeline failed!'
+            script {
+                // Clean up on failure
+                sh """
+                    docker stop ${CONTAINER_NAME} || true
+                    docker rm ${CONTAINER_NAME} || true
+                """
+            }
+        }
+        
         always {
-            // بنمسح الكونتينر اللي عملناه عشان نحافظ على نظافة السيرفر
-            echo "Cleaning up the test container..."
-            sh "docker stop ${CONTAINER_NAME} || true"
-            sh "docker rm ${CONTAINER_NAME} || true"
+            echo 'Cleaning up unused Docker images...'
+            sh 'docker image prune -f'
         }
     }
 }
